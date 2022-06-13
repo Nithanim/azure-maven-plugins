@@ -5,13 +5,17 @@
 
 package com.microsoft.azure.toolkit.lib.auth;
 
+import com.azure.core.credential.AccessToken;
+import com.azure.core.credential.SimpleTokenCache;
 import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
 import com.azure.core.http.policy.FixedDelay;
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import com.azure.core.http.policy.RetryPolicy;
 import com.azure.core.management.AzureEnvironment;
 import com.azure.core.management.profile.AzureProfile;
 import com.azure.core.util.logging.ClientLogger;
+import com.azure.identity.implementation.util.ScopeUtil;
 import com.azure.resourcemanager.resources.ResourceManager;
 import com.azure.resourcemanager.resources.models.Tenant;
 import com.microsoft.azure.toolkit.lib.Azure;
@@ -29,6 +33,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -49,9 +55,12 @@ public class TokenCredentialManager implements TenantProvider, SubscriptionProvi
 
     @Setter
     protected Function<String, TokenCredential> credentialSupplier;
+    // cache for different tenants
+    private final Map<String, TokenCredential> tokenCredentialCache = new ConcurrentHashMap<>();
 
     public TokenCredential createTokenCredentialForTenant(String tenantId) {
-        return credentialSupplier.apply(tenantId);
+        return this.tokenCredentialCache.computeIfAbsent(tenantId,
+            key -> new AutoRefreshableTokenCredential(credentialSupplier.apply(tenantId)));
     }
 
     public Mono<List<String>> listTenants() {
@@ -60,11 +69,11 @@ public class TokenCredentialManager implements TenantProvider, SubscriptionProvi
 
     public Mono<List<Subscription>> listSubscriptions(List<String> tenantIds) {
         return Flux.fromIterable(tenantIds).parallel().runOn(Schedulers.boundedElastic())
-                .flatMap(tenant -> listSubscriptionsInTenant(createAzureClient(environment, tenant), tenant)).sequential().collectList()
-                .map(subscriptionsSet -> subscriptionsSet.stream()
-                        .flatMap(Collection::stream)
-                        .filter(Utils.distinctByKey(subscription -> StringUtils.lowerCase(subscription.getId())))
-                        .collect(Collectors.toList()));
+            .flatMap(tenant -> listSubscriptionsInTenant(createAzureClient(environment, tenant), tenant)).sequential().collectList()
+            .map(subscriptionsSet -> subscriptionsSet.stream()
+                .flatMap(Collection::stream)
+                .filter(Utils.distinctByKey(subscription -> StringUtils.lowerCase(subscription.getId())))
+                .collect(Collectors.toList()));
     }
 
     private static Mono<List<Subscription>> listSubscriptionsInTenant(ResourceManager.Authenticated client, String tenantId) {
@@ -114,5 +123,23 @@ public class TokenCredentialManager implements TenantProvider, SubscriptionProvi
             httpPipelineCallContext.getHttpRequest().setHeader("User-Agent", String.format("%s %s", userAgent, previousUserAgent));
             return httpPipelineNextPolicy.process();
         };
+    }
+
+    static class AutoRefreshableTokenCredential implements TokenCredential {
+        // cache for different resources on the same tenant
+        private final Map<String, SimpleTokenCache> tokenCache = new ConcurrentHashMap<>();
+
+        private final TokenCredential tokenCredential;
+
+        public AutoRefreshableTokenCredential(TokenCredential tokenCredential) {
+            this.tokenCredential = tokenCredential;
+        }
+
+        @Override
+        public Mono<AccessToken> getToken(TokenRequestContext request) {
+            String resource = ScopeUtil.scopesToResource(request.getScopes());
+            return tokenCache.computeIfAbsent(resource, (ignore) ->
+                new SimpleTokenCache(() -> tokenCredential.getToken(request))).getToken();
+        }
     }
 }

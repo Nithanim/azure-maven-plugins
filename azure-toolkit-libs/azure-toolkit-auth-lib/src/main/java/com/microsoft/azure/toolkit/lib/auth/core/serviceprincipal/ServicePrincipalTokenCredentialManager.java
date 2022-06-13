@@ -7,11 +7,11 @@ package com.microsoft.azure.toolkit.lib.auth.core.serviceprincipal;
 
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.management.AzureEnvironment;
-import com.microsoft.azure.toolkit.lib.auth.TokenCredentialManagerWithCache;
+import com.microsoft.azure.toolkit.lib.auth.TokenCredentialManager;
 
 import javax.annotation.Nonnull;
 
-class ServicePrincipalTokenCredentialManager extends TokenCredentialManagerWithCache {
+class ServicePrincipalTokenCredentialManager extends TokenCredentialManager {
 
     public ServicePrincipalTokenCredentialManager(@Nonnull AzureEnvironment env, @Nonnull TokenCredential credential) {
         this.environment = env;

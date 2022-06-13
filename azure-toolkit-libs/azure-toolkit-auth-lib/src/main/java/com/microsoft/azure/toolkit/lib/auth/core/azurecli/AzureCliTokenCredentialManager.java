@@ -12,7 +12,7 @@ import com.azure.core.management.AzureEnvironment;
 import com.azure.identity.implementation.util.ScopeUtil;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.microsoft.azure.toolkit.lib.auth.TokenCredentialManagerWithCache;
+import com.microsoft.azure.toolkit.lib.auth.TokenCredentialManager;
 import com.microsoft.azure.toolkit.lib.auth.exception.AzureToolkitAuthenticationException;
 import com.microsoft.azure.toolkit.lib.auth.util.AzureCliUtils;
 import com.microsoft.azure.toolkit.lib.common.utils.JsonUtils;
@@ -27,7 +27,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
-class AzureCliTokenCredentialManager extends TokenCredentialManagerWithCache {
+class AzureCliTokenCredentialManager extends TokenCredentialManager {
     public AzureCliTokenCredentialManager(AzureEnvironment env) {
         this.environment = env;
         rootCredentialSupplier = () -> new AzureCliTokenCredential(null);

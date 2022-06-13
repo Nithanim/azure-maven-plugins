@@ -33,7 +33,7 @@ import java.util.concurrent.Future;
 /**
  * TODO: this class is for internal use only.
  */
-public class RefreshTokenTokenCredentialManager extends TokenCredentialManagerWithCache {
+public class RefreshTokenTokenCredentialManager extends TokenCredentialManager {
 
     public static Mono<TokenCredentialManager> createTokenCredentialManager(@Nonnull AzureEnvironment env,
                                                                             String clientId, @Nonnull TokenCredential credential) {
@@ -76,7 +76,7 @@ public class RefreshTokenTokenCredentialManager extends TokenCredentialManagerWi
             throw new IllegalArgumentException("cannot get refresh token from msal token.");
         }
 
-        final TokenCredentialManager tokenCredentialManager = new TokenCredentialManagerWithCache();
+        final TokenCredentialManager tokenCredentialManager = new TokenCredentialManager();
         tokenCredentialManager.setEnvironment(env);
         tokenCredentialManager.setEmail(getEmailFromMsalToken(token));
         tokenCredentialManager.setCredentialSupplier(tenantId -> new RefreshTokenCredential(authority, clientId, tenantId, refreshToken));

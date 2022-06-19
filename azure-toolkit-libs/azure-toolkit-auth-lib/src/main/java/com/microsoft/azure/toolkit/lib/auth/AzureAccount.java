@@ -16,15 +16,13 @@ import com.azure.resourcemanager.resources.models.Subscription;
 import com.google.common.base.Preconditions;
 import com.microsoft.azure.toolkit.lib.Azure;
 import com.microsoft.azure.toolkit.lib.account.IAzureAccount;
-import com.microsoft.azure.toolkit.lib.auth.core.azurecli.AzureCliAccount;
-import com.microsoft.azure.toolkit.lib.auth.core.devicecode.DeviceCodeAccount;
-import com.microsoft.azure.toolkit.lib.auth.core.oauth.OAuthAccount;
-import com.microsoft.azure.toolkit.lib.auth.core.serviceprincipal.ServicePrincipalAccount;
+import com.microsoft.azure.toolkit.lib.auth.azurecli.AzureCliAccount;
+import com.microsoft.azure.toolkit.lib.auth.devicecode.DeviceCodeAccount;
+import com.microsoft.azure.toolkit.lib.auth.oauth.OAuthAccount;
+import com.microsoft.azure.toolkit.lib.auth.serviceprincipal.ServicePrincipalAccount;
 import com.microsoft.azure.toolkit.lib.auth.exception.AzureToolkitAuthenticationException;
 import com.microsoft.azure.toolkit.lib.auth.exception.LoginFailureException;
 import com.microsoft.azure.toolkit.lib.auth.model.AccountEntity;
-import com.microsoft.azure.toolkit.lib.auth.model.AuthConfiguration;
-import com.microsoft.azure.toolkit.lib.auth.model.AuthType;
 import com.microsoft.azure.toolkit.lib.auth.util.AzureEnvironmentUtils;
 import com.microsoft.azure.toolkit.lib.common.cache.Cacheable;
 import com.microsoft.azure.toolkit.lib.common.event.AzureEventBus;
@@ -239,7 +237,7 @@ public class AzureAccount implements IAzureAccount {
 
     public Mono<Account> loginAsync(Account targetAccount, boolean enablePersistence) {
         Objects.requireNonNull(targetAccount, "Please specify account to login.");
-        targetAccount.setEnablePersistence(enablePersistence);
+        targetAccount.setPersistenceEnabled(enablePersistence);
         return targetAccount.login();
     }
 

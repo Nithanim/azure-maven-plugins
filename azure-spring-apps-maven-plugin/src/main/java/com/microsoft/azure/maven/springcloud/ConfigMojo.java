@@ -358,7 +358,7 @@ public class ConfigMojo extends AbstractMojoBase {
         final Subscription select = this.wrapper.handleSelectOne("select-subscriptions", subscriptions,
             CollectionUtils.isNotEmpty(selectedSubscriptions) ? selectedSubscriptions.get(0) : null,
             t -> String.format("%s (%s)", t.getName(), t.getId()));
-        com.microsoft.azure.toolkit.lib.Azure.az(AzureAccount.class).account().selectSubscription(Collections.singletonList(select.getId()));
+        com.microsoft.azure.toolkit.lib.Azure.az(AzureAccount.class).account().setSelectedSubscriptions(Collections.singletonList(select.getId()));
         return select.getId();
     }
 

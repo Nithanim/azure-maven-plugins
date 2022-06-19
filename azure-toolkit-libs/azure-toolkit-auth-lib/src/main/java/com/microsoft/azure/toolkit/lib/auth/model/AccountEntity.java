@@ -6,6 +6,7 @@
 package com.microsoft.azure.toolkit.lib.auth.model;
 
 import com.azure.core.management.AzureEnvironment;
+import com.microsoft.azure.toolkit.lib.auth.AuthType;
 import com.microsoft.azure.toolkit.lib.common.model.Subscription;
 import lombok.AccessLevel;
 import lombok.Getter;

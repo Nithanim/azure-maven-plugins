@@ -19,7 +19,7 @@ public interface IAccount {
 
     Subscription getSubscription(String subscriptionId);
 
-    String portalUrl();
+    String getPortalUrl();
 
     AzureEnvironment getEnvironment();
 

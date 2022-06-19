@@ -20,13 +20,14 @@ import com.microsoft.azure.maven.utils.SystemPropertyUtils;
 import com.microsoft.azure.maven.utils.TextIOUtils;
 import com.microsoft.azure.toolkit.lib.Azure;
 import com.microsoft.azure.toolkit.lib.auth.Account;
+import com.microsoft.azure.toolkit.lib.auth.AuthConfiguration;
 import com.microsoft.azure.toolkit.lib.auth.AzureAccount;
 import com.microsoft.azure.toolkit.lib.auth.AzureCloud;
-import com.microsoft.azure.toolkit.lib.auth.core.devicecode.DeviceCodeAccount;
+import com.microsoft.azure.toolkit.lib.auth.devicecode.DeviceCodeAccount;
 import com.microsoft.azure.toolkit.lib.auth.exception.AzureLoginException;
 import com.microsoft.azure.toolkit.lib.auth.exception.AzureToolkitAuthenticationException;
 import com.microsoft.azure.toolkit.lib.auth.exception.LoginFailureException;
-import com.microsoft.azure.toolkit.lib.auth.model.AuthType;
+import com.microsoft.azure.toolkit.lib.auth.AuthType;
 import com.microsoft.azure.toolkit.lib.auth.util.AzureEnvironmentUtils;
 import com.microsoft.azure.toolkit.lib.common.exception.AzureExecutionException;
 import com.microsoft.azure.toolkit.lib.common.logging.Log;
@@ -344,13 +345,13 @@ public abstract class AbstractAzureMojo extends AbstractMojo {
         final List<Subscription> subscriptions = account.getSubscriptions();
         final String targetSubscriptionId = getTargetSubscriptionId(getSubscriptionId(), subscriptions, account.getSelectedSubscriptions());
         checkSubscription(subscriptions, targetSubscriptionId);
-        account.selectSubscription(Collections.singletonList(targetSubscriptionId));
+        account.setSelectedSubscriptions(Collections.singletonList(targetSubscriptionId));
         final Subscription subscription = account.getSubscription(targetSubscriptionId);
         Log.info(String.format(SUBSCRIPTION_TEMPLATE, TextUtils.cyan(subscription.getName()), TextUtils.cyan(subscription.getId())));
         this.subscriptionId = targetSubscriptionId;
     }
 
-    protected Account login(@Nonnull com.microsoft.azure.toolkit.lib.auth.model.AuthConfiguration auth) {
+    protected Account login(@Nonnull AuthConfiguration auth) {
         promptAzureEnvironment(auth.getEnvironment());
         MavenAuthUtils.disableIdentityLogs();
         accountLogin(auth);
@@ -368,7 +369,7 @@ public abstract class AbstractAzureMojo extends AbstractMojo {
         return account;
     }
 
-    private static Account accountLogin(@Nonnull com.microsoft.azure.toolkit.lib.auth.model.AuthConfiguration auth) {
+    private static Account accountLogin(@Nonnull AuthConfiguration auth) {
 
         if (auth.getEnvironment() != null) {
             Azure.az(AzureCloud.class).set(auth.getEnvironment());
@@ -427,13 +428,13 @@ public abstract class AbstractAzureMojo extends AbstractMojo {
         return current;
     }
 
-    private static Account doServicePrincipalLogin(com.microsoft.azure.toolkit.lib.auth.model.AuthConfiguration auth) {
+    private static Account doServicePrincipalLogin(AuthConfiguration auth) {
         auth.setType(AuthType.SERVICE_PRINCIPAL);
         return Azure.az(AzureAccount.class).login(auth).account();
     }
 
     private static Mono<Account> checkAccountAvailable(Account account) {
-        return account.checkAvailable().map(avail -> {
+        return account.checkApplicable().map(avail -> {
             if (avail) {
                 return account;
             }

@@ -3,20 +3,19 @@
  * Licensed under the MIT License. See License.txt in the project root for license information.
  */
 
-package com.microsoft.azure.toolkit.lib.auth.model;
+package com.microsoft.azure.toolkit.lib.auth;
 
 import com.azure.core.management.AzureEnvironment;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
 @Setter
 @Getter
+@RequiredArgsConstructor
 public class AuthConfiguration {
-    private AuthType type;
-    private AzureEnvironment environment;
+    private final AuthType type;
     private String client;
     private String tenant;
-    private String key;
-    private String certificate;
-    private String certificatePassword;
+    private AzureEnvironment environment;
 }

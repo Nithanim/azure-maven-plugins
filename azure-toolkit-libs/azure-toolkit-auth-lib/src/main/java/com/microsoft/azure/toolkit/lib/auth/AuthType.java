@@ -3,11 +3,13 @@
  * Licensed under the MIT License. See License.txt in the project root for license information.
  */
 
-package com.microsoft.azure.toolkit.lib.auth.model;
+package com.microsoft.azure.toolkit.lib.auth;
 
 import com.microsoft.azure.toolkit.lib.auth.exception.InvalidConfigurationException;
+import com.microsoft.azure.toolkit.lib.auth.util.AzureCliUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import java.awt.*;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -55,5 +57,25 @@ public enum AuthType {
                 throw new InvalidConfigurationException(String.format("Invalid auth type '%s', supported values are: %s.", type,
                     Arrays.stream(values()).map(Object::toString).map(StringUtils::lowerCase).collect(Collectors.joining(", "))));
         }
+    }
+
+    public boolean checkApplicable() {
+        switch (this) {
+            case DEVICE_CODE:
+            case OAUTH2:
+                return Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE);
+            case AZURE_CLI:
+                return AzureCliUtils.isAppropriateCliInstalled() && AzureCliUtils.isSignedIn();
+            case AUTO:
+            case SERVICE_PRINCIPAL:
+                return true;
+            case MANAGED_IDENTITY:
+            case VSCODE:
+            case INTELLIJ_IDEA:
+            case AZURE_AUTH_MAVEN_PLUGIN:
+            case VISUAL_STUDIO:
+                return false;
+        }
+        return false;
     }
 }

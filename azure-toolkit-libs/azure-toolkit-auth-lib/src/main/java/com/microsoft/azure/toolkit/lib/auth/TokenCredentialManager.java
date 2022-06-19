@@ -63,68 +63,6 @@ public class TokenCredentialManager implements TenantProvider, SubscriptionProvi
             key -> new AutoRefreshableTokenCredential(credentialSupplier.apply(tenantId)));
     }
 
-    public Mono<List<String>> listTenants() {
-        return createAzureClient(environment).tenants().listAsync().map(Tenant::tenantId).collectList();
-    }
-
-    public Mono<List<Subscription>> listSubscriptions(List<String> tenantIds) {
-        return Flux.fromIterable(tenantIds).parallel().runOn(Schedulers.boundedElastic())
-            .flatMap(tenant -> listSubscriptionsInTenant(createAzureClient(environment, tenant), tenant)).sequential().collectList()
-            .map(subscriptionsSet -> subscriptionsSet.stream()
-                .flatMap(Collection::stream)
-                .filter(Utils.distinctByKey(subscription -> StringUtils.lowerCase(subscription.getId())))
-                .collect(Collectors.toList()));
-    }
-
-    private static Mono<List<Subscription>> listSubscriptionsInTenant(ResourceManager.Authenticated client, String tenantId) {
-        return client.subscriptions().listAsync()
-                .map(s -> toSubscriptionEntity(tenantId, s)).collectList().onErrorResume(ex -> {
-                    // warn and ignore, should modify here if IMessage is ready
-                    LOGGER.warning(String.format("Cannot get subscriptions for tenant %s " +
-                            ", please verify you have proper permissions over this tenant, detailed error: %s", tenantId, ex.getMessage()));
-                    return Mono.just(new ArrayList<>());
-                });
-    }
-
-    private static Subscription toSubscriptionEntity(String tenantId,
-                                                     com.azure.resourcemanager.resources.models.Subscription subscription) {
-        final Subscription subscriptionEntity = new Subscription();
-        subscriptionEntity.setId(subscription.subscriptionId());
-        subscriptionEntity.setName(subscription.displayName());
-        subscriptionEntity.setTenantId(tenantId);
-        return subscriptionEntity;
-    }
-
-    private ResourceManager.Authenticated createAzureClient(AzureEnvironment env, String tenantId) {
-        AzureProfile profile = new AzureProfile(env);
-        return configureAzure().authenticate(this.createTokenCredentialForTenant(tenantId), profile);
-    }
-
-    private ResourceManager.Authenticated createAzureClient(AzureEnvironment env) {
-        AzureProfile profile = new AzureProfile(env);
-        return configureAzure().authenticate(this.rootCredentialSupplier.get(), profile);
-    }
-
-    /**
-     * TODO: share the same code for creating ResourceManager.Configurable
-     */
-    private static ResourceManager.Configurable configureAzure() {
-        // disable retry for getting tenant and subscriptions
-        return ResourceManager.configure()
-            .withHttpClient(AbstractAzServiceSubscription.getDefaultHttpClient())
-                .withPolicy(createUserAgentPolicy())
-                .withRetryPolicy(new RetryPolicy(new FixedDelay(0, Duration.ofSeconds(0))));
-    }
-
-    private static HttpPipelinePolicy createUserAgentPolicy() {
-        final String userAgent = Azure.az().config().getUserAgent();
-        return (httpPipelineCallContext, httpPipelineNextPolicy) -> {
-            final String previousUserAgent = httpPipelineCallContext.getHttpRequest().getHeaders().getValue("User-Agent");
-            httpPipelineCallContext.getHttpRequest().setHeader("User-Agent", String.format("%s %s", userAgent, previousUserAgent));
-            return httpPipelineNextPolicy.process();
-        };
-    }
-
     static class AutoRefreshableTokenCredential implements TokenCredential {
         // cache for different resources on the same tenant
         private final Map<String, SimpleTokenCache> tokenCache = new ConcurrentHashMap<>();

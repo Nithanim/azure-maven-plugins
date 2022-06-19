@@ -3,7 +3,7 @@
  * Licensed under the MIT License. See License.txt in the project root for license information.
  */
 
-package com.microsoft.azure.toolkit.lib.auth.core.azurecli;
+package com.microsoft.azure.toolkit.lib.auth.azurecli;
 
 import com.azure.core.management.AzureEnvironment;
 import com.azure.identity.implementation.util.IdentityConstants;
@@ -12,7 +12,7 @@ import com.microsoft.azure.toolkit.lib.auth.Account;
 import com.microsoft.azure.toolkit.lib.auth.AzureCloud;
 import com.microsoft.azure.toolkit.lib.auth.TokenCredentialManager;
 import com.microsoft.azure.toolkit.lib.auth.exception.AzureToolkitAuthenticationException;
-import com.microsoft.azure.toolkit.lib.auth.model.AuthType;
+import com.microsoft.azure.toolkit.lib.auth.AuthType;
 import com.microsoft.azure.toolkit.lib.auth.model.AzureCliSubscription;
 import com.microsoft.azure.toolkit.lib.auth.util.AzureCliUtils;
 import com.microsoft.azure.toolkit.lib.auth.util.AzureEnvironmentUtils;
@@ -24,12 +24,11 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class AzureCliAccount extends Account {
-    @Override
-    public AuthType getAuthType() {
-        return AuthType.AZURE_CLI;
+    public AzureCliAccount() {
+        super(AuthType.AZURE_CLI, IdentityConstants.DEVELOPER_SINGLE_SIGN_ON_ID);
     }
 
-    protected Mono<Boolean> preLoginCheck() {
+    public Mono<Boolean> checkApplicable() {
         return Mono.fromCallable(() -> {
             final List<AzureCliSubscription> cliSubs = AzureCliUtils.listSubscriptions();
             if (cliSubs.isEmpty()) {
@@ -63,10 +62,5 @@ public class AzureCliAccount extends Account {
 
     protected Mono<TokenCredentialManager> createTokenCredentialManager() {
         return Mono.just(new AzureCliTokenCredentialManager(this.entity.getEnvironment()));
-    }
-
-    @Override
-    public String getClientId() {
-        return IdentityConstants.DEVELOPER_SINGLE_SIGN_ON_ID;
     }
 }

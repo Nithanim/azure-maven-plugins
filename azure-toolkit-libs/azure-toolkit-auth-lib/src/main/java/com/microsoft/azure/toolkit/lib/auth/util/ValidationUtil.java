@@ -6,7 +6,7 @@
 package com.microsoft.azure.toolkit.lib.auth.util;
 
 import com.microsoft.azure.toolkit.lib.auth.exception.InvalidConfigurationException;
-import com.microsoft.azure.toolkit.lib.auth.model.AuthConfiguration;
+import com.microsoft.azure.toolkit.lib.auth.AuthConfiguration;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Objects;

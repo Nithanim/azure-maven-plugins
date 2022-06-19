@@ -3,7 +3,7 @@
  * Licensed under the MIT License. See License.txt in the project root for license information.
  */
 
-package com.microsoft.azure.toolkit.lib.auth.core.azurecli;
+package com.microsoft.azure.toolkit.lib.auth.azurecli;
 
 import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.TokenCredential;

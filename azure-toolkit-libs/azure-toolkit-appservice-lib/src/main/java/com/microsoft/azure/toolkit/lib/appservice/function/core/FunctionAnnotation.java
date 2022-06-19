@@ -8,12 +8,15 @@ import com.microsoft.azure.toolkit.lib.common.exception.AzureToolkitRuntimeExcep
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.DotName;
 
 import javax.annotation.Nonnull;
 import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class FunctionAnnotation {
     @Setter
@@ -54,12 +57,12 @@ public class FunctionAnnotation {
         return copiedMap;
     }
 
-    public boolean isAnnotationType(@Nonnull Class<? extends Annotation> clz) {
-        return StringUtils.equals(getAnnotationClassName(), clz.getCanonicalName());
+    public boolean isAnnotationType(@Nonnull ClassInfo annotationClass) {
+        return Objects.equals(getAnnotationClassName(), annotationClass.name());
     }
 
     public boolean isAnnotationType(@Nonnull final String className) {
-        return StringUtils.equals(getAnnotationClassName(), className);
+        return StringUtils.equals(getAnnotationClassName().toString(), className);
     }
 
     public Object get(String key, boolean includeDefaultValue) {
@@ -78,7 +81,7 @@ public class FunctionAnnotation {
         return value == null ? null : (String) value;
     }
 
-    public String getAnnotationClassName() {
+    public DotName getAnnotationClassName() {
         return annotationClass.getFullName();
     }
 }

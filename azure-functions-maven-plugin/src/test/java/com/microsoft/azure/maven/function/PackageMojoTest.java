@@ -8,6 +8,7 @@ package com.microsoft.azure.maven.function;
 import com.microsoft.azure.toolkit.lib.legacy.function.handlers.AnnotationHandler;
 import com.microsoft.azure.toolkit.lib.legacy.function.handlers.AnnotationHandlerImpl;
 import org.codehaus.plexus.util.ReflectionUtils;
+import org.jboss.jandex.IndexView;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -37,7 +38,8 @@ public class PackageMojoTest extends MojoTestBase {
         final Set<Method> methods = new HashSet<>(Arrays.asList(this.getClass().getMethods()));
         ReflectionUtils.setVariableValueInObject(mojoSpy, "finalName", "artifact-0.1.0");
         doReturn(mock(AnnotationHandler.class)).when(mojoSpy).getAnnotationHandler();
-        doReturn(methods).when(mojoSpy).findAnnotatedMethods(any());
+        doReturn(mock(IndexView.class)).when(mojoSpy).buildIndex(any());
+        doReturn(methods).when(mojoSpy).findAnnotatedMethods(any(), any());
         doReturn(false).when(mojoSpy).isInstallingExtensionNeeded(any());
         doNothing().when(mojoSpy).copyHostJson();
         doNothing().when(mojoSpy).copyLocalSettingsJson();

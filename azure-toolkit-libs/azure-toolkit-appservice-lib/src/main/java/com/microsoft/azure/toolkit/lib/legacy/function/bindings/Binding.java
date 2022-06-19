@@ -11,6 +11,13 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.*;
 
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationValue;
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.Index;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.MethodInfo;
+
 @JsonSerialize(using = BindingSerializer.class)
 public class Binding {
 
@@ -37,13 +44,12 @@ public class Binding {
     }
 
     @Deprecated
-    public Binding(BindingEnum bindingEnum, Annotation annotation) {
+    public Binding(IndexView index, BindingEnum bindingEnum, AnnotationInstance annotationInstance) {
         this(bindingEnum);
-        final Class<? extends Annotation> annotationType = annotation.annotationType();
+        final ClassInfo annotation = index.getClassByName(annotationInstance.name());
         try {
-            for (final Method propertyMethod : annotationType.getDeclaredMethods()) {
-                final Object value = propertyMethod.invoke(annotation);
-                addProperties(value, propertyMethod);
+            for (final AnnotationValue value : annotationInstance.values()) {
+                addProperties(annotation, value);
             }
         } catch (Exception e) {
             throw new RuntimeException("Resolving binding attributes failed", e);
@@ -99,22 +105,27 @@ public class Binding {
                 .toString();
     }
 
-    protected void addProperties(Object value, Method propertyMethod) {
-        final String propertyName = propertyMethod.getName();
-        if (propertyName.equals("direction") && value instanceof String) {
-            this.direction = BindingEnum.Direction.fromString((String) value);
+    protected void addProperties(ClassInfo annotation, AnnotationValue annotationValue) {
+        final String propertyName = annotationValue.name();
+        if (propertyName.equals("direction") && annotationValue.kind() == AnnotationValue.Kind.STRING) {
+            this.direction = BindingEnum.Direction.fromString(annotationValue.asString());
             return;
         }
 
-        if (propertyName.equals("type") && value instanceof String) {
-            this.type = (String) value;
+        if (propertyName.equals("type") && annotationValue.kind() == AnnotationValue.Kind.STRING) {
+            this.type = annotationValue.asString();
             return;
         }
 
-        if (!value.equals(propertyMethod.getDefaultValue()) ||
+        Object defaultValue = Optional.ofNullable(annotation.method(annotationValue.name()))
+                .map(MethodInfo::defaultValue)
+                .map(AnnotationValue::value)
+                .orElse(null);
+
+        if (!annotationValue.value().equals(defaultValue) ||
                 (requiredAttributeMap.get(bindingEnum) != null &&
                         requiredAttributeMap.get(bindingEnum).contains(propertyName))) {
-            bindingAttributes.put(propertyName, value);
+            bindingAttributes.put(propertyName, annotationValue.value());
         }
 
     }

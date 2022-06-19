@@ -12,6 +12,9 @@ import lombok.experimental.SuperBuilder;
 
 import java.lang.annotation.Annotation;
 
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.Index;
+
 @Getter()
 @SuperBuilder(toBuilder = true)
 public class Retry {
@@ -28,8 +31,8 @@ public class Retry {
                 .delayInterval(annotation.getStringValue("delayInterval", true)).build();
     }
 
-    public static Retry createFixedDelayRetryFromAnnotation(final Annotation fixedDelayRetry) {
-        return createFixedDelayRetryFromAnnotation(DefaultFunctionProject.create(fixedDelayRetry));
+    public static Retry createFixedDelayRetryFromAnnotation(Index index, final AnnotationInstance fixedDelayRetry) {
+        return createFixedDelayRetryFromAnnotation(DefaultFunctionProject.create(index, fixedDelayRetry));
     }
 
     public static Retry createExponentialBackoffRetryFromAnnotation(final FunctionAnnotation annotation) {
@@ -40,7 +43,7 @@ public class Retry {
                 .maximumInterval(annotation.getStringValue("maximumInterval", true)).build();
     }
 
-    public static Retry createExponentialBackoffRetryFromAnnotation(final Annotation exponentialBackoffRetry) {
-        return createExponentialBackoffRetryFromAnnotation(DefaultFunctionProject.create(exponentialBackoffRetry));
+    public static Retry createExponentialBackoffRetryFromAnnotation(final Index index, final AnnotationInstance exponentialBackoffRetry) {
+        return createExponentialBackoffRetryFromAnnotation(DefaultFunctionProject.create(index, exponentialBackoffRetry));
     }
 }

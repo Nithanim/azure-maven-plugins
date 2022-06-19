@@ -5,11 +5,13 @@
 
 package com.microsoft.azure.toolkit.lib.legacy.function.bindings;
 
-import org.apache.commons.lang3.StringUtils;
-
-import java.lang.annotation.Annotation;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+
+import org.apache.commons.lang3.StringUtils;
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.IndexView;
 
 import static com.microsoft.azure.toolkit.lib.appservice.function.core.AzureFunctionsAnnotationConstants.CUSTOM_BINDING;
 
@@ -17,20 +19,22 @@ import static com.microsoft.azure.toolkit.lib.appservice.function.core.AzureFunc
 public class BindingFactory {
     private static final String HTTP_OUTPUT_DEFAULT_NAME = "$return";
 
-    public static Binding getBinding(final Annotation annotation) {
+    public static Binding getBinding(final IndexView index, final AnnotationInstance annotationInstance) {
         final BindingEnum annotationEnum = Arrays.stream(BindingEnum.values())
             .filter(bindingEnum -> bindingEnum.name().toLowerCase(Locale.ENGLISH)
-                .equals(annotation.annotationType().getSimpleName().toLowerCase(Locale.ENGLISH)))
+                .equals(annotationInstance.name().local().toLowerCase(Locale.ENGLISH)))
             .findFirst().orElse(null);
-        return annotationEnum == null ? getUserDefinedBinding(annotation) : new Binding(annotationEnum, annotation);
+        return annotationEnum == null ? getUserDefinedBinding(index, annotationInstance) : new Binding(index, annotationEnum, annotationInstance);
     }
 
-    public static Binding getUserDefinedBinding(final Annotation annotation) {
-        final Annotation customBindingAnnotation = Arrays.stream(annotation.annotationType().getDeclaredAnnotations())
-                .filter(declaredAnnotation -> StringUtils.equals(declaredAnnotation.annotationType().getCanonicalName(), CUSTOM_BINDING))
-                .findFirst().orElse(null);
-        return customBindingAnnotation == null ? null : new ExtendedCustomBinding(BindingEnum.ExtendedCustomBinding,
-                customBindingAnnotation, annotation);
+    public static Binding getUserDefinedBinding(final IndexView index, final AnnotationInstance annotation) {
+        return index.getClassByName(annotation.name()).annotations().values().stream()
+                .flatMap(List::stream)
+                .filter(declaredAnnotation -> StringUtils.equals(declaredAnnotation.name().toString(), CUSTOM_BINDING))
+                .findFirst()
+                .map(customBindingAnnotation -> new ExtendedCustomBinding(index, BindingEnum.ExtendedCustomBinding,
+                        customBindingAnnotation, annotation))
+                .orElse(null);
     }
 
     public static Binding getHTTPOutBinding() {

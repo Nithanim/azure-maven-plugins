@@ -14,10 +14,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.jboss.jandex.Index;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.MethodInfo;
+
 public interface AnnotationHandler {
-    Set<Method> findFunctions(final List<URL> urls);
+    IndexView buildIndex(final List<URL> urls);
 
-    Map<String, FunctionConfiguration> generateConfigurations(final Set<Method> methods) throws AzureExecutionException;
+    Set<MethodInfo> findFunctions(final IndexView index);
 
-    FunctionConfiguration generateConfiguration(final Method method) throws AzureExecutionException;
+    Map<String, FunctionConfiguration> generateConfigurations(final IndexView index, final Set<MethodInfo> methods) throws AzureExecutionException;
+
+    FunctionConfiguration generateConfiguration(final IndexView index, final MethodInfo method) throws AzureExecutionException;
 }

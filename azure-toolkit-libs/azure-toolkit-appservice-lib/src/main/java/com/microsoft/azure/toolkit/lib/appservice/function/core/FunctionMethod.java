@@ -9,10 +9,12 @@ import lombok.Setter;
 
 import java.util.List;
 
+import org.jboss.jandex.DotName;
+
 public class FunctionMethod implements IAnnotatable {
     @Setter
     @Getter
-    private String declaringTypeName;
+    private DotName declaringTypeName;
 
     @Setter
     @Getter
@@ -20,7 +22,7 @@ public class FunctionMethod implements IAnnotatable {
 
     @Setter
     @Getter
-    private String returnTypeName;
+    private DotName returnTypeName;
 
     @Setter
     @Getter

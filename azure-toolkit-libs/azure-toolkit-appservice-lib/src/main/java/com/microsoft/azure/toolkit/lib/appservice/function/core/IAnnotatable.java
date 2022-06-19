@@ -5,6 +5,7 @@
 package com.microsoft.azure.toolkit.lib.appservice.function.core;
 
 import org.apache.commons.lang3.StringUtils;
+import org.jboss.jandex.ClassInfo;
 
 import java.lang.annotation.Annotation;
 import java.util.List;
@@ -12,12 +13,12 @@ import java.util.List;
 public interface IAnnotatable {
     List<FunctionAnnotation> getAnnotations();
 
-    default FunctionAnnotation getAnnotation(Class<? extends Annotation> clz) {
-        return getAnnotations().stream().filter(annotation -> annotation.isAnnotationType(clz)).findFirst().orElse(null);
+    default FunctionAnnotation getAnnotation(ClassInfo annotationClass) {
+        return getAnnotations().stream().filter(annotation -> annotation.isAnnotationType(annotationClass)).findFirst().orElse(null);
     }
 
     default FunctionAnnotation getAnnotation(String annotationName) {
         return getAnnotations().stream()
-                .filter(annotation -> StringUtils.equals(annotation.getAnnotationClassName(), annotationName)).findFirst().orElse(null);
+                .filter(annotation -> StringUtils.equals(annotation.getAnnotationClassName().toString(), annotationName)).findFirst().orElse(null);
     }
 }

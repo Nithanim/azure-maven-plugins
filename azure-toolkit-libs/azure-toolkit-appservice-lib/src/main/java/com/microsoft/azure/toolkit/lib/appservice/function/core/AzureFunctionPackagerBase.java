@@ -92,7 +92,7 @@ abstract class AzureFunctionPackagerBase {
     }
 
     private void processMethodAnnotations(final FunctionMethod method, final List<Binding> bindings) {
-        if (!StringUtils.equalsIgnoreCase(method.getReturnTypeName(), "void")) {
+        if (!StringUtils.equalsIgnoreCase(method.getReturnTypeName().toString(), "void")) {
             bindings.addAll(parseAnnotations(method.getAnnotations(), this::parseMethodAnnotation));
 
             if (bindings.stream().anyMatch(b -> b.getBindingEnum() == BindingEnum.HttpTrigger) &&
@@ -152,7 +152,7 @@ abstract class AzureFunctionPackagerBase {
     }
 
     private Binding getBinding(final FunctionAnnotation annotation) {
-        String fqn = annotation.getAnnotationClassName();
+        String fqn = annotation.getAnnotationClassName().toString();
         final BindingEnum annotationEnum =
             Arrays.stream(BindingEnum.values())
                 .filter(bindingEnum -> StringUtils.equalsIgnoreCase(bindingEnum.name(),

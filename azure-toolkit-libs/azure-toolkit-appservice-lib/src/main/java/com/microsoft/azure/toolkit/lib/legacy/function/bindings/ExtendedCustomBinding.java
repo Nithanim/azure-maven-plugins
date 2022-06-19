@@ -11,15 +11,21 @@ import com.microsoft.azure.toolkit.lib.appservice.function.impl.DefaultFunctionP
 
 import java.lang.annotation.Annotation;
 
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.Index;
+import org.jboss.jandex.IndexView;
+
 public class ExtendedCustomBinding extends Binding {
 
-    private FunctionAnnotation customBindingAnnotation;
+    private final FunctionAnnotation customBindingAnnotation;
 
-    public ExtendedCustomBinding(BindingEnum bindingEnum,
-                                 Annotation customBindingAnnotation,
-                                 Annotation annotation) {
-        super(bindingEnum, annotation);
-        this.customBindingAnnotation = DefaultFunctionProject.create(customBindingAnnotation);
+    public ExtendedCustomBinding(IndexView index,
+                                 BindingEnum bindingEnum,
+                                 AnnotationInstance customBindingAnnotation,
+                                 AnnotationInstance annotation) {
+        super(index, bindingEnum, annotation);
+        this.customBindingAnnotation = DefaultFunctionProject.create(index, customBindingAnnotation);
     }
 
     @Override

@@ -5,11 +5,33 @@
 
 package com.microsoft.azure.toolkit.lib.legacy.function.handlers;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.lang.annotation.Annotation;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.jboss.jandex.CompositeIndex;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.Indexer;
+import org.jboss.jandex.MethodInfo;
+import org.junit.Assert;
+import org.junit.Test;
+import org.reflections.Reflections;
+import org.reflections.util.ClasspathHelper;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import com.microsoft.azure.toolkit.lib.legacy.function.bindings.Binding;
-import com.microsoft.azure.toolkit.lib.legacy.function.configurations.FunctionConfiguration;
 import com.microsoft.azure.functions.OutputBinding;
 import com.microsoft.azure.functions.annotation.BlobInput;
 import com.microsoft.azure.functions.annotation.BlobOutput;
@@ -36,25 +58,11 @@ import com.microsoft.azure.functions.annotation.TableInput;
 import com.microsoft.azure.functions.annotation.TableOutput;
 import com.microsoft.azure.functions.annotation.TimerTrigger;
 import com.microsoft.azure.functions.annotation.TwilioSmsOutput;
-
-import org.junit.Assert;
-import org.junit.Test;
-import org.reflections.util.ClasspathHelper;
-
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import com.microsoft.azure.toolkit.lib.legacy.function.bindings.Binding;
+import com.microsoft.azure.toolkit.lib.legacy.function.configurations.FunctionConfiguration;
+import com.microsoft.azure.toolkit.lib.legacy.function.utils.IndexUtils;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class AnnotationHandlerImplTest {
     public static final String HTTP_TRIGGER_FUNCTION = "HttpTriggerFunction";
@@ -226,10 +234,12 @@ public class AnnotationHandlerImplTest {
     @Test
     public void findFunctions() throws Exception {
         final AnnotationHandler handler = getAnnotationHandler();
-        final Set<Method> functions = handler.findFunctions(Arrays.asList(getClassUrl()));
+        IndexView testClassIndex = handler.buildIndex(Collections.singletonList(getClassUrl()));
+        IndexView fullIndex = IndexUtils.enrichIndex(testClassIndex);
+        final Set<MethodInfo> functions = handler.findFunctions(fullIndex);
 
         Assert.assertEquals(13, functions.size());
-        final List<String> methodNames = functions.stream().map(f -> f.getName()).collect(Collectors.toList());
+        final List<String> methodNames = functions.stream().map(MethodInfo::name).collect(Collectors.toList());
         Assert.assertTrue(methodNames.contains(HTTP_TRIGGER_METHOD));
         Assert.assertTrue(methodNames.contains(QUEUE_TRIGGER_METHOD));
         Assert.assertTrue(methodNames.contains(TIMER_TRIGGER_METHOD));
@@ -248,9 +258,11 @@ public class AnnotationHandlerImplTest {
     @Test
     public void generateConfigurations() throws Exception {
         final AnnotationHandler handler = getAnnotationHandler();
-        final Set<Method> functions = handler.findFunctions(Arrays.asList(getClassUrl()));
-        final Map<String, FunctionConfiguration> configMap = handler.generateConfigurations(functions);
-        configMap.values().forEach(config -> config.validate());
+        final List<URL> urls = Collections.singletonList(getClassUrl());
+        IndexView fullIndex = IndexUtils.enrichIndex(handler.buildIndex(urls));
+        final Set<MethodInfo> functions = handler.findFunctions(fullIndex);
+        final Map<String, FunctionConfiguration> configMap = handler.generateConfigurations(fullIndex, functions);
+        configMap.values().forEach(FunctionConfiguration::validate);
 
         Assert.assertEquals(13, configMap.size());
 
@@ -287,8 +299,8 @@ public class AnnotationHandlerImplTest {
                 COSMOSDB_OUTPUT_REQUIRED_ATTRIBUTES, false);
 
         verifyFunctionBinding(configMap.get(EVENTHUB_TRIGGER_FUNCTION).getBindings().stream()
-                .filter(baseBinding -> baseBinding.getName().equals("messages")).findFirst().get(),
-            EVENTHUB_TRIGGER_REQUIRED_ATTRIBUTES, true);
+                        .filter(baseBinding -> baseBinding.getName().equals("messages")).findFirst().get(),
+                EVENTHUB_TRIGGER_REQUIRED_ATTRIBUTES, true);
 
         final Binding customBinding = configMap.get(CUSTOM_BINDING_FUNCTION).getBindings().get(0);
         verifyFunctionBinding(customBinding, CUSTOM_BINDING_REQUIRED_ATTRIBUTES, true);
@@ -321,7 +333,7 @@ public class AnnotationHandlerImplTest {
     }
 
     private String getFullyQualifiedMethodName(final String methodName) {
-        return FunctionEntryPoints.class.getCanonicalName() + "." + methodName;
+        return FunctionEntryPoints.class.getName() + "." + methodName;
     }
 
     private void verifyFunctionConfiguration(final Map<String, FunctionConfiguration> configMap,

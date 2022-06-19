@@ -5,6 +5,40 @@
 
 package com.microsoft.azure.toolkit.lib.legacy.function.handlers;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
+import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationTarget;
+import org.jboss.jandex.CompositeIndex;
+import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexReader;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.Indexer;
+import org.jboss.jandex.MethodInfo;
+import org.jboss.jandex.Type;
+
 import com.microsoft.azure.toolkit.lib.appservice.function.core.FunctionAnnotation;
 import com.microsoft.azure.toolkit.lib.appservice.function.core.FunctionMethod;
 import com.microsoft.azure.toolkit.lib.appservice.function.impl.DefaultFunctionProject;
@@ -15,25 +49,8 @@ import com.microsoft.azure.toolkit.lib.legacy.function.bindings.BindingEnum;
 import com.microsoft.azure.toolkit.lib.legacy.function.bindings.BindingFactory;
 import com.microsoft.azure.toolkit.lib.legacy.function.configurations.FunctionConfiguration;
 import com.microsoft.azure.toolkit.lib.legacy.function.configurations.Retry;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.ClassUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-import org.reflections.util.ConfigurationBuilder;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.microsoft.azure.toolkit.lib.appservice.function.core.AzureFunctionsAnnotationConstants.EXPONENTIAL_BACKOFF_RETRY;
 import static com.microsoft.azure.toolkit.lib.appservice.function.core.AzureFunctionsAnnotationConstants.FIXED_DELAY_RETRY;
@@ -48,27 +65,61 @@ public class AnnotationHandlerImpl implements AnnotationHandler {
         "please use either of them for one trigger";
 
     @Override
-    public Set<Method> findFunctions(final List<URL> urls) {
+    public Set<MethodInfo> findFunctions(IndexView index) {
+        HashSet<MethodInfo> methodInfos = new HashSet<>();
+        Collection<AnnotationInstance> annotationInstances = index.getAnnotations(DotName.createSimple(FUNCTION_NAME));
+        for (AnnotationInstance annotationInstance : annotationInstances) {
+            if (annotationInstance.target().kind() == AnnotationTarget.Kind.METHOD) {
+                methodInfos.add(annotationInstance.target().asMethod());
+            }
+        }
+        return methodInfos;
+    }
+
+    public IndexView buildIndex(final List<URL> urls) {
         try {
-            final ClassLoader classLoader = getClassLoader(urls);
-            final Class<?> functionNameAnnotation = ClassUtils.getClass(classLoader, FUNCTION_NAME);
-            final ConfigurationBuilder builder = new ConfigurationBuilder().addUrls(urls).setScanners(Scanners.MethodsAnnotated).addClassLoaders(classLoader);
-            return new Reflections(builder).getMethodsAnnotatedWith((Class<? extends Annotation>) functionNameAnnotation);
-        } catch (ClassNotFoundException e) {
+            List<IndexView> indexes = new ArrayList<>();
+            for (URL url : urls) {
+                InputStream persistedIndexStream = getClassLoader(url).getResourceAsStream("/META-INF/jandex.idx");
+                if (persistedIndexStream != null) {
+                    indexes.add(new IndexReader(persistedIndexStream).read());
+                } else {
+                    if (url.getProtocol().equals("file") && url.getFile().endsWith("/")) {
+                        indexes.add(indexLocalFolder(url));
+                    }
+                }
+            }
+            return CompositeIndex.create(indexes);
+        } catch (IOException | URISyntaxException e) {
             throw new AzureToolkitRuntimeException(e);
         }
     }
 
-    protected ClassLoader getClassLoader(final List<URL> urlList) {
-        final URL[] urlArray = urlList.toArray(new URL[0]);
-        return new URLClassLoader(urlArray, this.getClass().getClassLoader());
+    private IndexView indexLocalFolder(URL url) throws URISyntaxException, IOException {
+        Indexer indexer = new Indexer();
+        Path p = Paths.get(url.toURI());
+
+        Files.walkFileTree(p, new SimpleFileVisitor<Path>() {
+            @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                if (file.getFileName().toString().endsWith(".class")) {
+                    indexer.index(Files.newInputStream(file));
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+
+        return indexer.complete();
+    }
+
+    protected ClassLoader getClassLoader(final URL url) {
+        return new URLClassLoader(new URL[]{url}, null);
     }
 
     @Override
-    public Map<String, FunctionConfiguration> generateConfigurations(final Set<Method> methods) throws AzureExecutionException {
+    public Map<String, FunctionConfiguration> generateConfigurations(final IndexView index, final Set<MethodInfo> methods) throws AzureExecutionException {
         final Map<String, FunctionConfiguration> configMap = new HashMap<>();
-        for (final Method method : methods) {
-            final FunctionMethod functionMethod = DefaultFunctionProject.create(method);
+        for (final MethodInfo method : methods) {
+            final FunctionMethod functionMethod = DefaultFunctionProject.create(index, method);
             final FunctionAnnotation functionNameAnnotation = functionMethod.getAnnotation(FUNCTION_NAME);
             if (functionNameAnnotation == null) {
                 continue;
@@ -76,7 +127,7 @@ public class AnnotationHandlerImpl implements AnnotationHandler {
             final String functionName = functionNameAnnotation.getStringValue("value", true);
             validateFunctionName(configMap.keySet(), functionName);
             log.debug("Starting processing function : " + functionName);
-            configMap.put(functionName, generateConfiguration(method));
+            configMap.put(functionName, generateConfiguration(index, method));
         }
         return configMap;
     }
@@ -91,23 +142,23 @@ public class AnnotationHandlerImpl implements AnnotationHandler {
     }
 
     @Override
-    public FunctionConfiguration generateConfiguration(final Method method) throws AzureExecutionException {
+    public FunctionConfiguration generateConfiguration(final IndexView index, final MethodInfo method) throws AzureExecutionException {
         final FunctionConfiguration config = new FunctionConfiguration();
         final List<Binding> bindings = config.getBindings();
 
-        processParameterAnnotations(method, bindings);
+        processParameterAnnotations(index, method, bindings);
 
-        processMethodAnnotations(method, bindings);
+        processMethodAnnotations(index, method, bindings);
 
-        patchStorageBinding(method, bindings);
+        patchStorageBinding(index, method, bindings);
 
-        config.setRetry(getRetryConfigurationFromMethod(method));
-        config.setEntryPoint(method.getDeclaringClass().getCanonicalName() + "." + method.getName());
+        config.setRetry(getRetryConfigurationFromMethod(index, method));
+        config.setEntryPoint(method.declaringClass().name() + "." + method.name());
         return config;
     }
 
-    private Retry getRetryConfigurationFromMethod(Method method) throws AzureExecutionException {
-        final FunctionMethod functionMethod = DefaultFunctionProject.create(method);
+    private Retry getRetryConfigurationFromMethod(final IndexView index, MethodInfo method) throws AzureExecutionException {
+        final FunctionMethod functionMethod = DefaultFunctionProject.create(index, method);
         final FunctionAnnotation fixedDelayRetry = functionMethod.getAnnotation(FIXED_DELAY_RETRY);
         final FunctionAnnotation exponentialBackoffRetry = functionMethod.getAnnotation(EXPONENTIAL_BACKOFF_RETRY);
         if (fixedDelayRetry != null && exponentialBackoffRetry != null) {
@@ -122,15 +173,21 @@ public class AnnotationHandlerImpl implements AnnotationHandler {
         return null;
     }
 
-    protected void processParameterAnnotations(final Method method, final List<Binding> bindings) {
-        for (final Parameter param : method.getParameters()) {
-            bindings.addAll(parseAnnotations(param::getAnnotations, this::parseParameterAnnotation));
+    protected void processParameterAnnotations(final IndexView index, final MethodInfo method, final List<Binding> bindings) {
+        for (final AnnotationInstance annotation : method.annotations()) {
+            if (annotation.target().kind() == AnnotationTarget.Kind.METHOD_PARAMETER) {
+                bindings.addAll(
+                        parseAnnotations(() -> Collections.singletonList(annotation), a -> parseParameterAnnotation(index, a)));
+            }
         }
     }
 
-    protected void processMethodAnnotations(final Method method, final List<Binding> bindings) {
-        if (!method.getReturnType().equals(Void.TYPE)) {
-            bindings.addAll(parseAnnotations(method::getAnnotations, this::parseMethodAnnotation));
+    protected void processMethodAnnotations(final IndexView index, final MethodInfo method, final List<Binding> bindings) {
+        if (method.returnType().kind() != Type.Kind.VOID) {
+            List<AnnotationInstance> methodAnnotations = method.annotations().stream()
+                    .filter(a -> a.target().kind() == AnnotationTarget.Kind.METHOD)
+                    .collect(Collectors.toList());
+            bindings.addAll(parseAnnotations(() -> methodAnnotations, a -> parseMethodAnnotation(index, a)));
 
             if (bindings.stream().anyMatch(b -> b.getBindingEnum() == BindingEnum.HttpTrigger) &&
                 bindings.stream().noneMatch(b -> b.getName().equalsIgnoreCase("$return"))) {
@@ -139,11 +196,11 @@ public class AnnotationHandlerImpl implements AnnotationHandler {
         }
     }
 
-    protected List<Binding> parseAnnotations(Supplier<Annotation[]> annotationProvider,
-                                             Function<Annotation, Binding> annotationParser) {
+    protected List<Binding> parseAnnotations(Supplier<List<AnnotationInstance>> annotationProvider,
+                                             Function<AnnotationInstance, Binding> annotationParser) {
         final List<Binding> bindings = new ArrayList<>();
 
-        for (final Annotation annotation : annotationProvider.get()) {
+        for (final AnnotationInstance annotation : annotationProvider.get()) {
             final Binding binding = annotationParser.apply(annotation);
             if (binding != null) {
                 log.debug("Adding binding: " + binding);
@@ -154,20 +211,20 @@ public class AnnotationHandlerImpl implements AnnotationHandler {
         return bindings;
     }
 
-    protected Binding parseParameterAnnotation(final Annotation annotation) {
-        return BindingFactory.getBinding(annotation);
+    protected Binding parseParameterAnnotation(final IndexView index, final AnnotationInstance annotation) {
+        return BindingFactory.getBinding(index, annotation);
     }
 
-    protected Binding parseMethodAnnotation(final Annotation annotation) {
-        final Binding ret = parseParameterAnnotation(annotation);
+    protected Binding parseMethodAnnotation(final IndexView index, final AnnotationInstance annotation) {
+        final Binding ret = parseParameterAnnotation(index, annotation);
         if (ret != null) {
             ret.setName("$return");
         }
         return ret;
     }
 
-    protected void patchStorageBinding(final Method method, final List<Binding> bindings) {
-        final FunctionMethod functionMethod = DefaultFunctionProject.create(method);
+    protected void patchStorageBinding(final IndexView index, final MethodInfo method, final List<Binding> bindings) {
+        final FunctionMethod functionMethod = DefaultFunctionProject.create(index, method);
         final FunctionAnnotation storageAccount = functionMethod.getAnnotation(STORAGE_ACCOUNT);
 
         if (storageAccount != null) {

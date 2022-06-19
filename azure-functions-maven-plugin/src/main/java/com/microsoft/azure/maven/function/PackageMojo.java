@@ -5,45 +5,9 @@
 
 package com.microsoft.azure.maven.function;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.PrettyPrinter;
-import com.fasterxml.jackson.core.util.DefaultIndenter;
-import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.microsoft.azure.maven.model.DeploymentResource;
-import com.microsoft.azure.toolkit.lib.common.operation.AzureOperation;
-import com.microsoft.azure.toolkit.lib.common.utils.Utils;
-import com.microsoft.azure.toolkit.lib.common.exception.AzureExecutionException;
-import com.microsoft.azure.toolkit.lib.legacy.function.bindings.Binding;
-import com.microsoft.azure.toolkit.lib.legacy.function.bindings.BindingEnum;
-import com.microsoft.azure.toolkit.lib.legacy.function.configurations.FunctionConfiguration;
-import com.microsoft.azure.toolkit.lib.legacy.function.handlers.AnnotationHandler;
-import com.microsoft.azure.toolkit.lib.legacy.function.handlers.AnnotationHandlerImpl;
-import com.microsoft.azure.toolkit.lib.legacy.function.handlers.CommandHandler;
-import com.microsoft.azure.toolkit.lib.legacy.function.handlers.CommandHandlerImpl;
-import com.microsoft.azure.toolkit.lib.legacy.function.handlers.FunctionCoreToolsHandler;
-import com.microsoft.azure.toolkit.lib.legacy.function.handlers.FunctionCoreToolsHandlerImpl;
-import com.microsoft.azure.toolkit.lib.common.logging.Log;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.input.BOMInputStream;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.DependencyResolutionRequiredException;
-import org.apache.maven.plugins.annotations.LifecyclePhase;
-import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.plugins.annotations.ResolutionScope;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
@@ -58,6 +22,45 @@ import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.input.BOMInputStream;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
+import org.apache.maven.plugins.annotations.LifecyclePhase;
+import org.apache.maven.plugins.annotations.Mojo;
+import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.MethodInfo;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.PrettyPrinter;
+import com.fasterxml.jackson.core.util.DefaultIndenter;
+import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.microsoft.azure.maven.model.DeploymentResource;
+import com.microsoft.azure.toolkit.lib.common.exception.AzureExecutionException;
+import com.microsoft.azure.toolkit.lib.common.logging.Log;
+import com.microsoft.azure.toolkit.lib.common.operation.AzureOperation;
+import com.microsoft.azure.toolkit.lib.common.utils.Utils;
+import com.microsoft.azure.toolkit.lib.legacy.function.bindings.Binding;
+import com.microsoft.azure.toolkit.lib.legacy.function.bindings.BindingEnum;
+import com.microsoft.azure.toolkit.lib.legacy.function.configurations.FunctionConfiguration;
+import com.microsoft.azure.toolkit.lib.legacy.function.handlers.AnnotationHandler;
+import com.microsoft.azure.toolkit.lib.legacy.function.handlers.AnnotationHandlerImpl;
+import com.microsoft.azure.toolkit.lib.legacy.function.handlers.CommandHandler;
+import com.microsoft.azure.toolkit.lib.legacy.function.handlers.CommandHandlerImpl;
+import com.microsoft.azure.toolkit.lib.legacy.function.handlers.FunctionCoreToolsHandler;
+import com.microsoft.azure.toolkit.lib.legacy.function.handlers.FunctionCoreToolsHandlerImpl;
+import com.microsoft.azure.toolkit.lib.legacy.function.utils.IndexUtils;
 
 /**
  * Generate configuration files (host.json, function.json etc.) and copy JARs to staging directory.
@@ -122,19 +125,22 @@ public class PackageMojo extends AbstractFunctionMojo {
 
         final AnnotationHandler annotationHandler = getAnnotationHandler();
 
-        final Set<Method> methods;
+        Log.info("");
+        Log.info(SEARCH_FUNCTIONS);
+        IndexView index;
         try {
-            methods = findAnnotatedMethods(annotationHandler);
+            index = buildIndex(annotationHandler);
         } catch (MalformedURLException e) {
             throw new AzureExecutionException("Invalid URL when resolving class path:" + e.getMessage(), e);
         }
+        final Set<MethodInfo> methods = findAnnotatedMethods(index, annotationHandler);
 
         if (methods.size() == 0) {
             Log.info(NO_FUNCTIONS);
             return;
         }
 
-        final Map<String, FunctionConfiguration> configMap = getFunctionConfigurations(annotationHandler, methods);
+        final Map<String, FunctionConfiguration> configMap = getFunctionConfigurations(index, annotationHandler, methods);
 
         trackFunctionProperties(configMap);
         validateFunctionConfigurations(configMap);
@@ -170,22 +176,25 @@ public class PackageMojo extends AbstractFunctionMojo {
         return new AnnotationHandlerImpl();
     }
 
-    protected Set<Method> findAnnotatedMethods(final AnnotationHandler handler) throws MalformedURLException {
+    protected Set<MethodInfo> findAnnotatedMethods(final IndexView index, final AnnotationHandler handler) {
         Log.info("");
         Log.info(SEARCH_FUNCTIONS);
-        Set<Method> functions;
+        Set<MethodInfo> functions = handler.findFunctions(index);
+        Log.info(functions.size() + FOUND_FUNCTIONS);
+        return functions;
+    }
+
+    protected IndexView buildIndex(final AnnotationHandler handler) throws MalformedURLException {
         try {
             Log.debug("ClassPath to resolve: " + getTargetClassUrl());
             final List<URL> dependencyWithTargetClass = getDependencyArtifactUrls();
             dependencyWithTargetClass.add(getTargetClassUrl());
-            functions = handler.findFunctions(dependencyWithTargetClass);
+            return IndexUtils.enrichIndex(handler.buildIndex(dependencyWithTargetClass));
         } catch (NoClassDefFoundError e) {
             // fallback to reflect through artifact url, for shaded project(fat jar)
             Log.debug("ClassPath to resolve: " + getArtifactUrl());
-            functions = handler.findFunctions(Arrays.asList(getArtifactUrl()));
+            return IndexUtils.enrichIndex(handler.buildIndex(Collections.singletonList(getArtifactUrl())));
         }
-        Log.info(functions.size() + FOUND_FUNCTIONS);
-        return functions;
     }
 
     protected URL getArtifactUrl() throws MalformedURLException {
@@ -222,11 +231,12 @@ public class PackageMojo extends AbstractFunctionMojo {
 
     //region Generate function configurations
 
-    protected Map<String, FunctionConfiguration> getFunctionConfigurations(final AnnotationHandler handler,
-                                                                           final Set<Method> methods) throws AzureExecutionException {
+    protected Map<String, FunctionConfiguration> getFunctionConfigurations(final IndexView index,
+                                                                           final AnnotationHandler handler,
+                                                                           final Set<MethodInfo> methods) throws AzureExecutionException {
         Log.info("");
         Log.info(GENERATE_CONFIG);
-        final Map<String, FunctionConfiguration> configMap = handler.generateConfigurations(methods);
+        final Map<String, FunctionConfiguration> configMap = handler.generateConfigurations(index, methods);
         if (configMap.size() == 0) {
             Log.info(GENERATE_SKIP);
         } else {

@@ -9,10 +9,12 @@ import lombok.Setter;
 
 import java.util.List;
 
+import org.jboss.jandex.DotName;
+
 public class FunctionAnnotationClass implements IAnnotatable {
     @Setter
     @Getter
-    private String fullName;
+    private DotName fullName;
 
     @Setter
     @Getter
@@ -24,6 +26,6 @@ public class FunctionAnnotationClass implements IAnnotatable {
 
     @Override
     public String toString() {
-        return fullName;
+        return fullName.toString();
     }
 }

@@ -6,17 +6,10 @@
 package com.microsoft.azure.toolkit.lib.legacy.function.bindings;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.jboss.jandex.*;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.util.*;
-
-import org.jboss.jandex.AnnotationInstance;
-import org.jboss.jandex.AnnotationValue;
-import org.jboss.jandex.ClassInfo;
-import org.jboss.jandex.Index;
-import org.jboss.jandex.IndexView;
-import org.jboss.jandex.MethodInfo;
+import java.util.stream.Collectors;
 
 @JsonSerialize(using = BindingSerializer.class)
 public class Binding {
@@ -125,8 +118,28 @@ public class Binding {
         if (!annotationValue.value().equals(defaultValue) ||
                 (requiredAttributeMap.get(bindingEnum) != null &&
                         requiredAttributeMap.get(bindingEnum).contains(propertyName))) {
-            bindingAttributes.put(propertyName, annotationValue.value());
+
+            bindingAttributes.put(propertyName, getAnnotationValue(annotationValue));
         }
 
+    }
+
+    private Object getAnnotationValue(AnnotationValue annotationValue) {
+        if (annotationValue.kind() == AnnotationValue.Kind.ARRAY) {
+            if (annotationValue.componentKind() == AnnotationValue.Kind.NESTED) {
+                return Arrays.stream(annotationValue.asNestedArray())
+                        .map(AnnotationInstance::value)
+                        .map(this::getAnnotationValue)
+                        .collect(Collectors.toList());
+            } else {
+                return Arrays.stream((AnnotationValue[]) annotationValue.value())
+                        .map(this::getAnnotationValue)
+                        .collect(Collectors.toList());
+            }
+        } else if (annotationValue.kind() == AnnotationValue.Kind.NESTED) {
+            return getAnnotationValue(annotationValue.asNested().value());
+        } else {
+            return annotationValue.value();
+        }
     }
 }
